@@ -6,7 +6,6 @@ Based on code created by 山田　祐雅
 from enum import Enum
 from math import sqrt, atan
 import collections
-import copy
 import logging
 import os
 
@@ -17,16 +16,20 @@ from typing import List
 from cv import (
     addWeighted as cvAddWeighted,
     convertScaleAbs as cvConvertScaleAbs,
+    CloneImage as cvCloneImage,
     CreateImage as cvCreateImage,
     CV_8U,
     CV_GAUSSIAN,
     CV_MAKE_TYPE,
     destroyWindow as cvDestroyWindow,
     imshow as cvShowImage,
+    Line as cvLine,
+    SaveImage as cvSaveImage,
     Set as cvSet,
     Smooth as cvSmooth,
     Sobel as cvSobel,
     THRESH_BINARY as CV_THRESH_BINARY,
+    Threshold as cvThreshold,
 )
 
 
@@ -123,31 +126,11 @@ class IplImage:
 separate_count = 0
 
 
-def cvCloneImage(src):
-    return copy.copy(src)
-
-
 def cvarrToMat(src):
     raise NotImplementedError
 
 
-def is_blank(src):
-    raise NotImplementedError
-
-
-def cvSaveImage():
-    raise NotImplementedError
-
-
-def cvThreshold(*args):
-    raise NotImplementedError
-
-
 def cvReleaseImage(*args):
-    raise NotImplementedError
-
-
-def cvLine(*args):
     raise NotImplementedError
 
 
@@ -229,7 +212,7 @@ class FrameSeparation:
         self.output_dir = output_dir
         self.dp_img = cvarrToMat(self.src)
 
-        if not is_blank(self.src):
+        if not self.is_blank(self.src):
             self.calculate_ig()
             #  // 最大長の2%分を走査から外す
             #  // Saidai-chō no 2-pāsento-bun o sōsa kara hazusu
@@ -253,7 +236,7 @@ class FrameSeparation:
             self.dslc_o()
             self.slat()
             if not self.sl_exists():
-                if not is_blank(src):
+                if not self.is_blank(src):
                     self.save_image(src)
             else:
                 separation_res = self.separation()
@@ -814,9 +797,9 @@ class FrameSeparation:
             cv.waitKey(0)
 
         #  // 保存しないで良い余白等はfalseを返す
-        if is_blank(slice_src):
+        if self.is_blank(slice_src):
             return Response.DROP_SLICE_SRC
-        if is_blank(remained_src):
+        if self.is_blank(remained_src):
             return Response.DROP_REMAINED_SRC
 
         threshold: float = 0.02
