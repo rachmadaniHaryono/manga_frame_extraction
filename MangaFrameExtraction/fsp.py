@@ -301,6 +301,10 @@ class FrameSeparation:
                 del self.fs1_recursive
                 del self.fs2_recursive
 
+    def calculate_ending_point(self, is_horizontal: bool, position: int, length: int, theta: int)-> cvPoint:
+        return cvPoint(length, position + length * cos(to_rad(theta))) \
+            if is_horizontal else cvPoint(position + length * cos(to_rad(theta)), length)
+
     def save_image(self, img):
         """save image.
         Args:
@@ -412,6 +416,32 @@ class FrameSeparation:
             is_horizontal, position, theta, count/length
         ))
         return Response.OK if count / length > (0.55 if theta == 90 else 0.4) else Response.INVASION_FRAMES
+
+    def detect_pixels(self, is_horizontal: bool, position: int, length: int, theta: int, pixels: List[PixPoint])-> List[PixPoint]:
+        #  // 傾きのある直線上の画素を走査
+        if (theta > 135) or (theta < 45):
+            raise ValueError('invalid degree, code:{}'.format(Response.INVALID_DIGREES))
+        x0: int = 0 if is_horizontal else position
+        y0: int = position if is_horizontal else 0
+
+        point: cvPoint = self.calculate_ending_point(is_horizontal, position, length, theta)
+
+        if (point.x <= 0) or (point.y <= 0):
+            raise ValueError('invalid degree, code:{}'.format(Response.INVALID_DIGREES))
+
+        it: LineIterator = LineIterator(self.dp_img, cvPoint(x0, y0), cvPoint(point.x, point.y), 8)
+
+        #  pixels.resize(it.count)
+        # TODO
+        pixels = resize_pixels(pixels, it.count)
+        for i in range(it.count):
+            # TODO
+            #  pixels.at(i).x = it.pos().x
+            #  pixels.at(i).y = it.pos().y
+            pixels[i].x = it.pos().x
+            pixels[i].y = it.pos().y
+
+        return pixels
 
     def slat(self, debug=False):
         #  // 定数
@@ -908,6 +938,38 @@ class FrameSeparation:
             sl.theta = 90
             sl.ig = 0 if num_zero > line_size * 0.9 else ig / line_size
 
-    def detect_pixels(self, is_horizontal: bool, position: int, length: int, theta: int, pixels: List[PixPoint])-> List[PixPoint]:
-        #  // 傾きのある直線上の画素を走査
-        raise NotImplementedError
+    def calculate_wpr(self, is_horizontal: bool, debug: bool = False)-> None:
+        proc_img = self.proc_img
+        position: int = proc_img.height if is_horizontal else proc_img.width
+        direction: int = proc_img.width if is_horizontal else proc_img.height
+
+        if debug:
+            #  double* wpr = new double[position];
+            wpr: List[float] = [position]
+        wpr_line: Mat = Mat.zeros(direction, 1, CV_8U)  # NOQA
+
+        for p in range(int((BLOCK_SIZE - 1) / 2), position - int((BLOCK_SIZE - 1) / 2)):
+            #  // wprを求める
+            max_: int = 0
+            tmp: int = 0
+            for d in range(direction):
+                # TODO
+                if is_horizontal:
+                    #  wpr_line.at<uchar>(0, d) = (uchar)proc_img->imageData[proc_img->widthStep * p + d * proc_img->nChannels];
+                    pass
+                else:
+                    #  wpr_line.at<uchar>(0, d) = (uchar)proc_img->imageData[proc_img->widthStep * d + p * proc_img->nChannels];
+                    pass
+            for i in range(direction):
+                #  cond = wpr_line.at<uchar>(0, i) == 255
+                cond = True
+                if cond:
+                    tmp += 1
+                else:
+                    max_ = max_ if max_ > tmp else tmp
+                    tmp = 0
+            max_ = max_ if max_ > tmp else tmp
+            if debug:
+                #  wpr[p] = max / (double)direction;
+                wpr[p] = max_ / float(direction)
+            self.slc[is_horizontal].at(p).wpr = max_ / float(direction)
