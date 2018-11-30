@@ -268,11 +268,12 @@ class FrameSeparation:
         cvSaveImage(dst_path, img)
         self.separate_count += 1
 
-    def cwgv(self, show_image=False):
+    def cwgv(self, show_image: bool = False):
+        """Center Weighted concentration Gradient Value."""
         #  // 2値化
         #  // 2 Atai-ka
         #  // Binarization
-        binary = cvCloneImage(src)
+        binary = cvCloneImage(self.src)
         cvThreshold(binary, binary, 120, 255, CV_THRESH_BINARY)
         self.bin_img = cvCloneImage(binary)
         self.proc_img = cvCloneImage(binary)
