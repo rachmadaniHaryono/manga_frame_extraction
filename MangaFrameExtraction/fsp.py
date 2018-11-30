@@ -283,6 +283,10 @@ class FrameSeparation:
         cvReleaseImage(binary)
 
     def dslc_hv(self):
+        """Detection of Separate Line Candidate for horizontal and vertical direction."""
+        # // 分割線候補検出
+        # // Bunkatsu-sen kōho kenshutsu
+        # // Split line candidate detection
         # // y軸の走査
         # // Y-jiku no sōsa
         # // Scan on y axis
@@ -295,6 +299,11 @@ class FrameSeparation:
         self.calculate_wpr(False)
 
     def dslc_o(self):
+        """Detection of Separate Line Candidate for oblique direction."""
+        # // 分割線候補検出
+        # // Bunkatsu-sen kōho kenshutsu
+        # // Detect candidate line candidate
+
         # // y軸の走査
         # // Y-jiku no sōsa
         # // Scan on y axis
