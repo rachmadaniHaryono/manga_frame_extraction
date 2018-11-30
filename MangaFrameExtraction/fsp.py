@@ -81,6 +81,7 @@ class PixPoint(collections.abc.Sequence):
     def cvPoint(self):
         return cvPoint(self.x, self.y)
 
+    @property
     def size(self):
         raise NotImplementedError
 
@@ -104,6 +105,12 @@ class SL:
         self.wpr = wpr
         self.Hw = Hw
         self.pixels = pixels
+
+    def resize(self, *args):
+        raise NotImplementedError
+
+    def at(self, *args):
+        raise NotImplementedError
 
 
 class Response(Enum):
@@ -189,7 +196,7 @@ class FrameSeparation:
 
         #  // 分割候補線
         #  vector<SL> slc[2];
-        self.slc = None
+        self.slc: List[SL] = []
         #  // x,y軸の各分割線候補の位置
         #  int sl_position[2];
         self.sl_position = None
@@ -825,6 +832,58 @@ class FrameSeparation:
         if src.width * src.height < original_size * 0.05:
             return True
         return False
+
+    def calculate_slc(self, is_horizontal: bool, debug: bool = False)->None:
+        #  // is_horizontal : 分割の切り口が水平かどうか
+        proc_img = self.proc_img
+        position: int = proc_img.height if is_horizontal else proc_img.width
+        direction: int = proc_img.width if is_horizontal else proc_img.height
+
+        if debug:
+            #  double* ig_line = new double[position];
+            ig_line: List[float] = [0.0]
+            pass
+        slc = self.slc
+
+        line: List[PixPoint] = []
+        slc[is_horizontal].resize(position)
+
+        for p in range(int((BLOCK_SIZE - 1) / 2), int(position - (BLOCK_SIZE - 1) / 2)):
+            ig: float = 0
+            num_zero: int = 0
+            line = slc[is_horizontal].at(p).pixels
+            sl: SL = slc[is_horizontal].at(p)
+
+            self.detect_pixels(is_horizontal, p, direction, 90, line)
+            for d in range(int((BLOCK_SIZE - 1) / 2), direction - int((BLOCK_SIZE - 1) / 2)):
+                value = 0
+                cond = True
+                if is_horizontal:
+                    #  // 90度が一番高くなるように正規化する
+                    #  if (ig_mat.at<Vec3b>(line->at(d).y, line->at(d).x)[1] >= 90) {
+                    if cond:
+                        #  value = ig_mat.at<Vec3b>(line->at(d).y, line->at(d).x)[1];
+                        ig += 180 - value
+                    else:
+                        #  ig += ig_mat.at<Vec3b>(line->at(d).y, line->at(d).x)[1];
+                        ig += value
+                else:
+                    #  // 0, 180度が一番高くなるように正規化する
+                    #  value = ig_mat.at<Vec3b>(line->at(d).y, line->at(d).x)[1] >= 90
+                    if cond:
+                        #  value = ig_mat.at<Vec3b>(line->at(d).y, line->at(d).x)[1]
+                        ig += -90 + value
+                    else:
+                        #  value = ig_mat.at<Vec3b>(line->at(d).y, line->at(d).x)[1]
+                        ig += 90 - value
+            #  line_size = line.size()
+            line_size = len(line)
+            if debug:
+                ig_line[p] = ig / line_size
+            sl.is_horizontal = is_horizontal
+            sl.position = p
+            sl.theta = 90
+            sl.ig = 0 if num_zero > line_size * 0.9 else ig / line_size
 
     def detect_pixels(self, is_horizontal: bool, position: int, length: int, theta: int, pixels: List[PixPoint])-> List[PixPoint]:
         #  // 傾きのある直線上の画素を走査
