@@ -17,10 +17,13 @@ from typing import List
 from cv import (
     addWeighted as cvAddWeighted,
     convertScaleAbs as cvConvertScaleAbs,
+    CreateImage as cvCreateImage,
     CV_8U,
     CV_GAUSSIAN,
     CV_MAKE_TYPE,
+    destroyWindow as cvDestroyWindow,
     imshow as cvShowImage,
+    Set as cvSet,
     Smooth as cvSmooth,
     Sobel as cvSobel,
     THRESH_BINARY as CV_THRESH_BINARY,
@@ -145,6 +148,10 @@ def cvReleaseImage(*args):
 
 
 def cvLine(*args):
+    raise NotImplementedError
+
+
+def cvScalarAll(*args):
     raise NotImplementedError
 
 
@@ -628,8 +635,196 @@ class FrameSeparation:
                 return False
         return True
 
-    def separation(self):
-        raise NotImplementedError
+    def separation(self, debug=False):
+        rel_slice_point = self.rel_original_point  # NOQA
+        rel_remained_point = self.rel_original_point
+
+        slice_line = self.slice_line
+        src = self.src
+        original_size = self.original_size
+
+        #  vector<PixPoint>* pixels = &slice_line.pixels;
+        pixels = slice_line.pixels
+        #  // x軸方向に分割した場合
+        if slice_line.is_horizontal:
+            slice_size: CvSize = CvSize()
+            remained_size: CvSize = CvSize()
+            if slice_line.theta == 90:
+                slice_size = CvSize(src.width, slice_line.position)
+                remained_size = CvSize(src.width, src.height - slice_line.position)
+            else:
+                if pixels.at(pixels.size() - 1).y < slice_line.position:
+                    slice_size = CvSize(pixels.at(pixels.size() - 1).x + 1, slice_line.position + 1)
+                else:
+                    slice_size = CvSize(pixels.at(pixels.size() - 1).x + 1, pixels.at(pixels.size() - 1).y + 1)
+                if pixels.at(pixels.size() - 1).y < slice_line.position:
+                    remained_size = CvSize(
+                        src.width + 1, src.height - pixels.at(pixels.size() - 1).y + 1)
+                else:
+                    remained_size = CvSize(src.width + 1, src.height - slice_line.position + 1)
+            slice_src = cvCreateImage(slice_size, src.depth, src.nChannels)
+            cvSet(slice_src, cvScalarAll(255), 0)
+            remained_src = cvCreateImage(remained_size, src.depth, src.nChannels)
+            cvSet(remained_src, cvScalarAll(255), 0)
+
+            rel_remained_point.y += slice_line.position
+
+            h: int = 0
+            w: int = 0
+            c: int = 0
+            if (src.width == pixels.size()) and (slice_line.theta == 90):
+                for w in range(src.width):
+                    for h in range(src.height):
+                        if h < slice_line.position:
+                            for c in range(src.nChannels):
+                                slice_src.imageData[slice_src.widthStep * h + w * slice_src.nChannels + c] = src.imageData[src.widthStep * h + w * src.nChannels + c]
+                        else:
+                            for c in range(src.nChannels):
+                                remained_src.imageData[remained_src.widthStep * (h - slice_line.position) + w * remained_src.nChannels + c] = src.imageData[src.widthStep * h + w * src.nChannels + c]
+            elif (src.width == pixels.size()) and (slice_line.theta > 90):
+                for w in range(src.width):
+                    for h in range(src.height):
+                        if h < pixels.at(w).y:
+                            for c in range(src.nChannels):
+                                slice_src.imageData[slice_src.widthStep * h + w * slice_src.nChannels + c] = src.imageData[src.widthStep * h + w * src.nChannels + c]
+                        else:
+                            for c in range(src.nChannels):
+                                remained_src.imageData[remained_src.widthStep * (h - pixels.at(pixels.size() - 1).y) + w * slice_src.nChannels + c] = src.imageData[src.widthStep * h + w * src.nChannels + c]
+            elif (src.width == pixels.size()) and (slice_line.theta <= 90):
+                for w in range(src.width):
+                    for h in range(src.height):
+                        if h < pixels.at(w).y:
+                            for c in range(src.nChannels):
+                                slice_src.imageData[slice_src.widthStep * h + w * slice_src.nChannels + c] = src.imageData[src.widthStep * h + w * src.nChannels + c]
+                        else:
+                            for c in range(src.nChannels):
+                                remained_src.imageData[remained_src.widthStep * (h - slice_line.position) + w * slice_src.nChannels + c] = src.imageData[src.widthStep * h + w * src.nChannels + c]
+            elif (src.width > pixels.size()) and (slice_line.theta > 90):
+                for w in range(pixels.size()):
+                    for h in range(src.height):
+                        if h < pixels.at(w).y:
+                            for c in range(src.nChannels):
+                                slice_src.imageData[slice_src.widthStep * h + w * slice_src.nChannels + c] = src.imageData[src.widthStep * h + w * src.nChannels + c]
+                        else:
+                            for c in range(src.nChannels):
+                                remained_src.imageData[remained_src.widthStep * h + w * remained_src.nChannels + c] = src.imageData[src.widthStep * h + w * src.nChannels + c]
+                for w in range(int(pixels.size()), src.width):
+                    for h in range(src.height):
+                        for c in range(src.nChannels):
+                            remained_src.imageData[remained_src.widthStep * h + w * remained_src.nChannels + c] = src.imageData[src.widthStep * h + w * src.nChannels + c]
+            else:
+                for w in range(pixels.size()):
+                    for h in range(src.height):
+                        if h < pixels.at(w).y:
+                            for c in range(src.nChannels):
+                                slice_src.imageData[slice_src.widthStep * h + w * slice_src.nChannels + c] = src.imageData[src.widthStep * h + w * src.nChannels + c]
+                        else:
+                            for c in range(src.nChannels):
+                                remained_src.imageData[remained_src.widthStep * (h - slice_line.position) + w * remained_src.nChannels + c] = src.imageData[src.widthStep * h + w * src.nChannels + c]
+                for w in range(int(pixels.size(), src.width)):
+                    for h in range(src.height):
+                        for c in range(src.nChannels):
+                            slice_src.imageData[slice_src.widthStep * h + w * slice_src.nChannels + c] = src.imageData[src.widthStep * h + w * src.nChannels + c]
+        #  // y軸方向に分割した場合
+        else:
+            slice_size: CvSize = CvSize()
+            remained_size: CvSize = CvSize()
+            if slice_line.theta == 90:
+                slice_size = CvSize(slice_line.position, src.height)
+                remained_size = CvSize(src.width - slice_line.position, src.height)
+            else:
+                if pixels.at(pixels.size() - 1).x < slice_line.position:
+                    slice_size = CvSize(slice_line.position + 1, pixels.at(pixels.size() - 1).y + 1)
+                else:
+                    slice_size = CvSize(pixels.at(pixels.size() - 1).x + 1, src.height)  # pixels.at(pixels.size() - 1).y+1)
+                if pixels.at(pixels.size() - 1).x < slice_line.position:
+                    remained_size = CvSize(src.width - pixels.at(pixels.size() - 1).x + 1, src.height)
+                else:
+                    remained_size = CvSize(src.width - slice_line.position, pixels.at(pixels.size() - 1).y + 1)
+            slice_src = cvCreateImage(slice_size, src.depth, src.nChannels)
+            cvSet(slice_src, cvScalarAll(255), 0)
+            remained_src = cvCreateImage(remained_size, src.depth, src.nChannels)
+            cvSet(remained_src, cvScalarAll(255), 0)
+
+            rel_remained_point.x += slice_line.position
+
+            h: int = 0
+            w: int = 0
+            c: int = 0
+            if (src.height == pixels.size()) and (slice_line.theta == 90):
+                for h in range(src.height):
+                    for w in range(src.width):
+                        if w < slice_line.position:
+                            for c in range(src.nChannels):
+                                slice_src.imageData[slice_src.widthStep * h + w * slice_src.nChannels + c] = src.imageData[src.widthStep * h + w * src.nChannels + c]
+                        else:
+                            for c in range(src.nChannels):
+                                remained_src.imageData[remained_src.widthStep * h + (w - slice_line.position) * remained_src.nChannels + c] = src.imageData[src.widthStep * h + w * src.nChannels + c]
+            elif (src.height == pixels.size()) and (slice_line.theta > 90):
+                for h in range(src.height):
+                    for w in range(src.width):
+                        if w < pixels.at(h).x:
+                            for c in range(src.nChannels):
+                                slice_src.imageData[slice_src.widthStep * h + w * slice_src.nChannels + c] = src.imageData[src.widthStep * h + w * src.nChannels + c]
+                        else:
+                            for c in range(src.nChannels):
+                                remained_src.imageData[remained_src.widthStep * h + (w - pixels.at(pixels.size() - 1).x) * slice_src.nChannels + c] = src.imageData[src.widthStep * h + w * src.nChannels + c]
+            elif (src.height == pixels.size()) and (slice_line.theta < 90):
+                for h in range(src.height):
+                    for w in range(src.width):
+                        if w < pixels.at(h).x:
+                            for c in range(src.nChannels):
+                                slice_src.imageData[slice_src.widthStep * h + w * slice_src.nChannels + c] = src.imageData[src.widthStep * h + w * src.nChannels + c]
+                        else:
+                            for c in range(src.nChannels):
+                                remained_src.imageData[remained_src.widthStep * h + (w - slice_line.position) * slice_src.nChannels + c] = src.imageData[src.widthStep * h + w * src.nChannels + c]
+            elif (src.height > pixels.size()) and (slice_line.theta > 90):
+                for h in range(pixels.size()):
+                    for w in range(src.width):
+                        if w < pixels.at(h).x:
+                            for c in range(src.nChannels):
+                                slice_src.imageData[slice_src.widthStep * h + w * slice_src.nChannels + c] = src.imageData[src.widthStep * h + w * src.nChannels + c]
+                        else:
+                            for c in range(src.nChannels):
+                                remained_src.imageData[remained_src.widthStep * h + w * remained_src.nChannels + c] = src.imageData[src.widthStep * h + w * src.nChannels + c]
+                for h in range(pixels.size()):
+                    for w in range(src.width):
+                        for c in range(src.nChannels):
+                            remained_src.imageData[remained_src.widthStep * h + w * remained_src.nChannels + c] = src.imageData[src.widthStep * h + w * src.nChannels + c]
+            else:
+                for h in range(pixels.size()):
+                    for w in range(src.width):
+                        if w < pixels.at(h).x:
+                            for c in range(src.nChannels):
+                                slice_src.imageData[slice_src.widthStep * h + w * slice_src.nChannels + c] = src.imageData[src.widthStep * h + w * src.nChannels + c]
+                        else:
+                            for c in range(src.nChannels):
+                                remained_src.imageData[remained_src.widthStep * h + (w - slice_line.position) * remained_src.nChannels + c] = src.imageData[src.widthStep * h + w * src.nChannels + c]
+                for h in range(int(pixels.size()), src.height):
+                    for w in range(src.width):
+                        for c in range(src.nChannels):
+                            remained_src.imageData[remained_src.widthStep * h + w * remained_src.nChannels + c] = src.imageData[src.widthStep * h + w * src.nChannels + c]
+
+        if debug:
+            cvDestroyWindow("[ separation ] slice_src")
+            cvShowImage("[ separation ] slice_src", slice_src)
+            cv.waitKey(0)
+            cvDestroyWindow("[ separation ] remained_src")
+            cvShowImage("[ separation ] remained_src", remained_src)
+            cv.waitKey(0)
+
+        #  // 保存しないで良い余白等はfalseを返す
+        if is_blank(slice_src):
+            return Response.DROP_SLICE_SRC
+        if is_blank(remained_src):
+            return Response.DROP_REMAINED_SRC
+
+        threshold: float = 0.02
+        if slice_src.width * slice_src.height < original_size * threshold:
+            return Response.DROP_SLICE_SRC
+        if remained_src.width * remained_src.height < original_size * threshold:
+            return Response.DROP_REMAINED_SRC
+        return Response.OK
 
     def detect_pixels(self, is_horizontal: bool, position: int, length: int, theta: int, pixels: List[PixPoint])-> List[PixPoint]:
         #  // 傾きのある直線上の画素を走査
