@@ -207,6 +207,7 @@ class FrameSeparation:
         #  double sl_hw[2];
         self.sl_hw = None
 
+        self.slice_line: SL = SL()
         self.fs1_recursive = None
         self.fs2_recursive = None
 
@@ -406,7 +407,7 @@ class FrameSeparation:
         if N <= M + 2:
             raise ValueError("SLAT(): n or m doesnt match the criteria")
 
-        slice_line = SL()
+        slice_line = self.slice_line
 
         #  // 最終的な分割線候補
         #  vector<SL> slc_final[2];
@@ -614,7 +615,18 @@ class FrameSeparation:
             #  imshow("[ calculate_ig ] ig_mat[1]", planes.at(1));
 
     def sl_exists(self):
-        raise NotImplementedError
+        slice_line = self.slice_line
+        src = self.src
+        if slice_line.position == 0:
+            return False
+        if slice_line.position <= (BLOCK_SIZE - 1) / 2:
+            return False
+        length: int = src.height if slice_line.is_horizontal else src.width
+        ep: int = slice_line.pixels.at(slice_line.pixels.size() - 1).y if slice_line.is_horizontal else slice_line.pixels.at(slice_line.pixels.size() - 1).x
+        if slice_line.theta != 90:
+            if (abs(length - slice_line.position) <= 20) or (abs(length - ep) <= 20):
+                return False
+        return True
 
     def separation(self):
         raise NotImplementedError
