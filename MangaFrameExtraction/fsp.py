@@ -128,6 +128,10 @@ def cvReleaseImage(*args):
     raise NotImplementedError
 
 
+def cvLine(*args):
+    raise NotImplementedError
+
+
 class FrameSeparation:
 
     def __init__(self, src, filename: str, output_dir: str, original_size: int, rel_original_point):
@@ -176,6 +180,16 @@ class FrameSeparation:
         self.bin_img: IplImage = IplImage()
         #  // detect_pixels用
         #  dp_img = None
+
+        #  // 分割候補線
+        #  vector<SL> slc[2];
+        self.slc = None
+        #  // x,y軸の各分割線候補の位置
+        #  int sl_position[2];
+        self.sl_position = None
+        #  // x,y軸の各分割線候補の評価値
+        #  double sl_hw[2];
+        self.sl_hw = None
 
         self.fs1_recursive = None
         self.fs2_recursive = None
@@ -362,7 +376,177 @@ class FrameSeparation:
         ))
         return Response.OK if count / length > (0.55 if theta == 90 else 0.4) else Response.INVASION_FRAMES
 
-    def slat(self):
+    def slat(self, debug=False):
+        #  // 定数
+        delta: int = 40
+        rho: float = 0.20
+        N: int = 7
+        M: int = 3
+        if self.slc[0].size() > self.src.width:
+            delta = 35
+            rho = 0.30
+            N = 20
+            M = 5
+        if N <= M + 2:
+            raise ValueError("SLAT(): n or m doesnt match the criteria")
+
+        slice_line = SL()
+
+        #  // 最終的な分割線候補
+        #  vector<SL> slc_final[2];
+        slc_final = []
+        length: int = 0
+        ep: int = 0
+        #  // 分割線候補から、x,y軸それぞれ最終的な分割線候補を決定する
+        #  for (int i = 0; i < 2; i++) {
+        src = self.src
+        slc = self.slc
+        proc_img = self.proc_img
+        for i in range(2):
+            logging.debug("x axis" if i == 0 else "y axis")
+            #  length = (bool)i ? src->height : src->width;
+            length = src.height if i else src.width
+
+            #  // 分割線候補のHwを計算する
+            xi = self.xi
+            for j in range(xi, slc[i].size() - xi):
+                if slc[i].size() > (src.width if i else src.height):
+                    slc[i].at(j).Hw = slc[i].at(j).ig
+                else:
+                    slc[i].at(j).Hw = slc[i].at(j).ig * slc[i].at(j).wpr
+            #  // 上位NUM_CANDIDATE件を最終的な分割線候補とする
+            for count in range(NUM_CANDIDATE):
+                max_ = 0.0
+                slc_final[i].push_back(SL())
+                for j in range(xi, slc[i].size() - xi):
+                    if (slc[i].at(j).pixels.size() == 0) or (slc[i].at(j).position <= xi):
+                        continue
+                    #  // 四隅xiピクセル(から始まる|で終わる）分割候補線は走査から除外
+                    ep = slc[i].at(j).pixels.at(slc[i].at(j).pixels.size() - 1).y if i else slc[i].at(j).pixels.at(slc[i].at(j).pixels.size() - 1).x
+                    if (abs(length - slc[i].at(j).position) <= xi) or (abs(length - ep) <= xi):
+                        continue
+                    if count == 0:
+                        if slc_final[i].at(count).Hw < slc[i].at(j).Hw:
+                            slc_final[i].data()[count] = slc[i].at(j)
+                    else:
+                        if max_ < slc[i].at(j).Hw:
+                            if slc_final[i].at(count - 1).Hw > slc[i].at(j).Hw:
+                                max_ = slc[i].at(j).Hw
+                                slc_final[i].data()[count] = slc[i].at(j)
+                #  // 見つからなかった場合
+                if slc_final[i].at(count).position == 0:
+                    continue
+                logging.debug("({}, {})".format(
+                    slc_final[i].at(count).position,  slc_final[i].at(count).Hw))
+                if debug:
+                    if i == 0:
+                        cvLine(proc_img, cvPoint(slc_final[i].at(count).position, 0), slc_final[i].at(count).pixels.at(slc_final[i].at(count).pixels.size() - 1), CV_RGB(255, 0, 0))
+                    else:
+                        cvLine(proc_img, cvPoint(0, slc_final[i].at(count).position), slc_final[i].at(count).pixels.at(slc_final[i].at(count).pixels.size() - 1), CV_RGB(255, 0, 0))
+        if debug:
+            cvShowImage("[ slat ] slice line", proc_img)
+            cv.waitKey(0)
+
+        #  // x,y軸のどちらの分割線が、正しい・分割すべき線かを決定する
+        #  // 評価方法は、分割線上輝度勾配分布による
+        igtest_pass_count_tmp: int = 0
+        #  double total_test_retio[2][NUM_CANDIDATE];
+        total_test_retio: float = 0.0
+        #  int total_test_pass_count[2][NUM_CANDIDATE];
+        total_test_pass_count: int = 0
+        #  double axis_test_retio[2];
+        axis_test_retio: float = 0.0
+        #  int axis_test_retio_index[2], direction = 0;
+        axis_test_retio_index: int = 0
+        direction: int = 0
+        #  vector<PixPoint>* pixels;
+        pixels: List[PixPoint] = []
+        for axis in range(2):
+            for candidate in range(NUM_CANDIDATE):
+                pixels = slc_final[axis].at(candidate).pixels
+                direction = pixels.size()
+                #  int* igh = new int[direction];
+                igh = [0]
+                for d in range(direction):
+                    if axis:
+                        #  // 横に分割
+                        #  if ig_mat.at<Vec3b>(pixels->at(d).y, pixels->at(d).x)[1] >= 90:
+                        cond = True
+                        if cond:
+                            #  igh[d] = 180 - ig_mat.at<Vec3b>(pixels->at(d).y, pixels->at(d).x)[1]
+                            value = 0
+                            igh[d] = 180 - value
+                        else:
+                            #  igh[d] = ig_mat.at<Vec3b>(pixels->at(d).y, pixels->at(d).x)[1]
+                            value = 0
+                            igh[d] = value
+                    else:
+                        #  // 縦に分割
+                        #  if ig_mat.at<Vec3b>(pixels->at(d).y, pixels->at(d).x)[1] >= 90:
+                        cond = True
+                        value = 0
+                        if cond:
+                            #  igh[d] = -90 + ig_mat.at<Vec3b>(pixels->at(d).y, pixels->at(d).x)[1]
+                            igh[d] = -90 + value
+                        else:
+                            #  igh[d] = 90 - ig_mat.at<Vec3b>(pixels->at(d).y, pixels->at(d).x)[1]
+                            igh[d] = 90 - value
+                igtest_pass_count_tmp = 0
+                #  // 90度の場合、最初と最後の余白（こう配が0）は計算から除外する
+                left_marin_count: int = 0
+                right_margin_count: int = direction - 1
+                if slc_final[axis].at(candidate).theta == 90:
+                    for i in range((BLOCK_SIZE - 1) / 2, direction - (BLOCK_SIZE - 1)/2):
+                        if igh[i] == 0:
+                            left_marin_count = i
+                        else:
+                            break
+                    for i in range(direction - (BLOCK_SIZE - 1) / 2 - 1, (BLOCK_SIZE - 1) / 2, -1):
+                        if igh[i] == 0:
+                            right_margin_count = i
+                        else:
+                            break
+
+                new_count: int = right_margin_count - left_marin_count
+                for n in range(N):
+                    count: int = 0
+                    for i in range(n * (new_count / N) + left_marin_count, (n + 1) * (new_count / N) + left_marin_count):
+                        if (igh[i] < 90 + delta) and (igh[i] > 90 - delta):
+                            count += 1
+                    if count / (new_count / float(N)) > 1 - rho:
+                        igtest_pass_count_tmp += 1
+                    total_test_retio[axis][candidate] += count / (new_count / float(N))
+                total_test_retio[axis][candidate] /= N
+                total_test_pass_count[axis][candidate] = igtest_pass_count_tmp
+                igh = []
+                #  delete[] igh
+
+            max_: float = 0.0
+            max_pass_count: int = 0
+            index: int = 0
+
+            for count in range(0, NUM_CANDIDATE):
+                #  // コマ内に侵入していなければカウントする
+                if self.invasion_test(axis, slc_final[axis][count].position, int(slc_final[axis][count].pixels.size()), slc_final[axis][count].theta) == Response.OK:
+                    if max_pass_count <= total_test_pass_count[axis][count]:
+                        max_ = total_test_retio[axis][count]
+                        max_pass_count = total_test_pass_count[axis][count]
+                        index = count
+            axis_test_retio[axis] = max_
+            axis_test_retio_index[axis] = index
+
+        #  // 分割判定
+        if (total_test_pass_count[0][axis_test_retio_index[0]] >= N - M) and (axis_test_retio[0] > axis_test_retio[1]):
+            slice_line = slc_final[0].at(axis_test_retio_index[0])
+            logging.debug('position: {}\nslice tate'.format(slice_line.position))
+        elif (total_test_pass_count[1][axis_test_retio_index[1]] >= N - M) and (axis_test_retio[0] < axis_test_retio[1]):
+            slice_line = slc_final[1].at(axis_test_retio_index[1])
+            logging.debug('position: {}\nslice yoko'.format(slice_line.position))
+
+        slc[0].clear()
+        slc[1].clear()
+
+    def calculate_ig(self):
         raise NotImplementedError
 
     def sl_exists(self):
