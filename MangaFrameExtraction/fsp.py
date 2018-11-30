@@ -4,14 +4,27 @@
 Based on code created by 山田　祐雅
 """
 from enum import Enum
+from math import sqrt, atan
 import collections
 import copy
 import logging
 import os
 
 import attr
-import cv2 as cv  # NOQA
+import cv2 as cv
+from numpy import pi as CV_PI
 from typing import List
+from cv import (
+    addWeighted as cvAddWeighted,
+    convertScaleAbs as cvConvertScaleAbs,
+    CV_8U,
+    CV_GAUSSIAN,
+    CV_MAKE_TYPE,
+    imshow as cvShowImage,
+    Smooth as cvSmooth,
+    Sobel as cvSobel,
+    THRESH_BINARY as CV_THRESH_BINARY,
+)
 
 
 @attr.s
@@ -27,6 +40,16 @@ class cvPoint:
     y = attr.ib(default=0)
 
 
+class Mat:
+    pass
+
+
+@attr.s
+class CvSize:
+    width = attr.ib(default=0)
+    height = attr.ib(default=0)
+
+
 COLOR_BLACK = CV_RGB(0, 0, 0)
 COLOR_WHITE = CV_RGB(255, 255, 255)
 AREA_THRESHOLD = 1
@@ -39,9 +62,6 @@ R = (CELL_SIZE * (BLOCK_SIZE)*0.5)
 MARGIN = 1
 NUM_SLC = 3
 NUM_CANDIDATE = 10
-
-CV_THRESH_BINARY = cv.THRESH_BINARY
-cvShowImage = cv.imshow
 
 
 #  // 画素
@@ -109,10 +129,6 @@ def cvarrToMat(src):
 
 
 def is_blank(src):
-    raise NotImplementedError
-
-
-def calculate_ig():
     raise NotImplementedError
 
 
@@ -206,7 +222,7 @@ class FrameSeparation:
         self.dp_img = cvarrToMat(self.src)
 
         if not is_blank(self.src):
-            calculate_ig()
+            self.calculate_ig()
             #  // 最大長の2%分を走査から外す
             #  // Saidai-chō no 2-pāsento-bun o sōsa kara hazusu
             #  // Remove 2% of the maximum length from scanning
@@ -546,8 +562,56 @@ class FrameSeparation:
         slc[0].clear()
         slc[1].clear()
 
-    def calculate_ig(self):
-        raise NotImplementedError
+    def calculate_ig(self, debug=False):
+        src = self.src
+        #  // sobel filter
+        proc_img = self.proc_img
+        sobel_x: IplImage = cvCloneImage(proc_img)
+        sobel_y: IplImage = cvCloneImage(proc_img)
+        cvSobel(src, sobel_x, 1, 0, 3)
+        cvConvertScaleAbs(sobel_x, sobel_x, 1, 0)
+        cvSobel(src, sobel_y, 0, 1, 3)
+        cvConvertScaleAbs(sobel_y, sobel_y, 1, 0)
+        cvAddWeighted(sobel_x, 0.5, sobel_y, 0.5, 0, proc_img)
+        cvSmooth(proc_img, proc_img, CV_GAUSSIAN, 3)
+        cvReleaseImage(sobel_x)
+        cvReleaseImage(sobel_y)
+
+        if debug:
+            # TODO
+            #  cvNamedWindow("[ calculate_ig ] sobel image", cv.WINDOW_AUTOSIZE)
+            cvShowImage("[ calculate_ig ] sobel image", proc_img)
+            cv.waitKey(0)
+
+        ig_mat = self.ig_mat
+        #  // width x height, 3chの行列
+        self.ig_mat = Mat(CvSize(self.src.width, self.src.height), CV_MAKE_TYPE(CV_8U, 3))
+
+        for y in range((BLOCK_SIZE - 1) / 2, self.src.height - (BLOCK_SIZE - 1) / 2):
+            for x in range((BLOCK_SIZE - 1) / 2, self.src.width - (BLOCK_SIZE - 1) / 2):
+                fx = 0
+                fy = 0
+                magnitude = 0
+                direction = 0
+                fx = int(self.proc_img.imageData[self.proc_img.widthStep * y + (x + 1) * self.proc_img.nChannels]) - \
+                    int(self.proc_img.imageData[self.proc_img.widthStep * y + (x - 1) * self.proc_img.nChannels])
+                fy = int(self.proc_img.imageData[self.proc_img.widthStep * (y + 1) + x * self.proc_img.nChannels]) - \
+                    int(self.proc_img.imageData[self.proc_img.widthStep * (y - 1) + x * self.proc_img.nChannels])
+                magnitude = sqrt(fx * fx + fy * fy)
+                logging.debug('magnitude: {}'.format(magnitude))
+                direction = atan(fy / (fx + 0.01))
+                direction = (direction + CV_PI if direction < 0 else direction) * 180.0 / CV_PI
+
+                ig_mat.data[ig_mat.step * y + (x * ig_mat.channels())] = self.src.imageData[self.src.widthStep * y + x * self.src.nChannels]
+                # TODO
+                #  ig_mat.at<Vec3b>(y, x)[1] = direction
+                #  ig_mat.at<Vec3b>(y, x)[1] = direction
+        if debug:
+            pass  # TODO
+            #  vector<Mat> planes;
+            #  split(ig_mat, planes);
+            #  namedWindow("[ calculate_ig ] ig_mat[1]", cv::WINDOW_AUTOSIZE);
+            #  imshow("[ calculate_ig ] ig_mat[1]", planes.at(1));
 
     def sl_exists(self):
         raise NotImplementedError
