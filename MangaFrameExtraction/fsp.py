@@ -826,6 +826,23 @@ class FrameSeparation:
             return Response.DROP_REMAINED_SRC
         return Response.OK
 
+    def is_blank(self, image: IplImage)-> bool:
+        count: int = 0
+        area: int = image.width * image.height
+        src = self.src
+        original_size = self.original_size
+        for h in range(image.height):
+            for w in range(image.width):
+                if int(image.imageData[image.widthStep * h + w * image.nChannels]) < 200:
+                    count += 1
+        #  // 黒の割合
+        logging.debug("black area rate: {}".format(count / float(area)))
+        if count / float(area) < 0.05:
+            return True
+        if src.width * src.height < original_size * 0.05:
+            return True
+        return False
+
     def detect_pixels(self, is_horizontal: bool, position: int, length: int, theta: int, pixels: List[PixPoint])-> List[PixPoint]:
         #  // 傾きのある直線上の画素を走査
         raise NotImplementedError
