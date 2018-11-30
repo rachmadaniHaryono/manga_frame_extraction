@@ -3,15 +3,183 @@
 
 Based on code created by 山田　祐雅
 """
+from enum import Enum
+import collections
+import copy
+import logging
 import os
+
+import attr
+import cv2 as cv  # NOQA
+from typing import List
+
+
+@attr.s
+class CV_RGB:
+    red = attr.ib(default=0)
+    green = attr.ib(default=0)
+    blue = attr.ib(default=0)
+
+
+@attr.s
+class cvPoint:
+    x = attr.ib(default=0)
+    y = attr.ib(default=0)
+
+
+COLOR_BLACK = CV_RGB(0, 0, 0)
+COLOR_WHITE = CV_RGB(255, 255, 255)
+AREA_THRESHOLD = 1
+ADD_PAGEFRAME_WIDTH = 20
+N_BIN = 45
+THETA = (180 / N_BIN)
+BLOCK_SIZE = 3
+CELL_SIZE = 1
+R = (CELL_SIZE * (BLOCK_SIZE)*0.5)
+MARGIN = 1
+NUM_SLC = 3
+NUM_CANDIDATE = 10
+
+CV_THRESH_BINARY = cv.THRESH_BINARY
+cvShowImage = cv.imshow
+
+
+#  // 画素
+#  // Gaso
+#  // pixel
+@attr.s
+class PixPoint(collections.abc.Sequence):
+    x = attr.ib(default=0)
+    y = attr.ib(default=0)
+
+    def cvPoint(self):
+        return cvPoint(self.x, self.y)
+
+    def size(self):
+        raise NotImplementedError
+
+    def __getitem__(self, idx):
+        raise NotImplementedError
+
+    def __len__(self):
+        raise NotImplementedError
+
+
+#  // 分割線
+#  // Bunkatsu-sen
+#  // Partition line
+class SL:
+
+    def __init__(self, is_horizontal: bool = True, position: int = 0, theta: int = 0, ig: float = 0.0, wpr: float = 0.0, Hw: float = 0.0, pixels: PixPoint = PixPoint(0)):
+        self.is_horizontal = is_horizontal
+        self.position = position
+        self.theta = theta
+        self.ig = ig
+        self.wpr = wpr
+        self.Hw = Hw
+        self.pixels = pixels
+
+
+class Response(Enum):
+    OK = 0
+    DROP_SLICE_SRC = 1
+    DROP_REMAINED_SRC = 2
+    INVALID_DIGREES = 3
+    INVASION_FRAMES = 4
+
+
+@attr.s
+class IplImage:
+    width = attr.ib(default=0)
+    height = attr.ib(default=0)
+    imageData: List = attr.ib(default=[])
+    widthStep = attr.ib(default=0)
+    nChannels = attr.ib(default=0)
+
+
+separate_count = 0
+
+
+def cvCloneImage(src):
+    return copy.copy(src)
+
+
+def cvarrToMat(src):
+    raise NotImplementedError
+
+
+def is_blank(src):
+    raise NotImplementedError
+
+
+def calculate_ig():
+    raise NotImplementedError
+
+
+def cvSaveImage():
+    raise NotImplementedError
+
+
+def cvThreshold(*args):
+    raise NotImplementedError
+
+
+def cvReleaseImage(*args):
+    raise NotImplementedError
 
 
 class FrameSeparation:
 
-    def __init__(self, src, filename, output_dir, original_size, rel_original_point):
+    def __init__(self, src, filename: str, output_dir: str, original_size: int, rel_original_point):
+        """init func.
+        Args:
+            src: source
+            filename (str): filename
+            output_dir (str): output dir
+            original_size (int): original size
+            rel_original_point: relative original point
+        """
         """Original kwargs:
             IplImage src, string filename, string output_dir, int original_size, PixPoint rel_original_point
         """
+        # // 元画像からの相対座標
+        # // Motogazō kara no sōtai zahyō
+        # // Relative coordinates from the original image
+        self.rel_original_point = PixPoint(x=0, y=0)
+        # // 分割線で切った画像の相対座標
+        # // bunkatsu-sen de kitta gazō no sōtai zahyō
+        # // Relative coordinates of the image cut by dividing line
+        self.rel_slice_point = PixPoint(x=0, y=0)
+        # // 分割線で切った残りの画像の相対座標
+        # // bunkatsu-sen de kitta nokori no gazō no sōtai zahyō
+        # // Relative coordinates of the remaining image cut by dividing line
+        self.rel_remained_point = PixPoint(x=0, y=0)
+
+        #  // 元画像
+        #  // Motogazō
+        #  // The original image
+        #  src: IplImage = IplImage()
+        #  // 分割線で切った画像
+        #  // bunkatsu-sen de kitta gazō
+        #  // Image cut with parting line
+        self.slice_src: IplImage = IplImage()
+        #  // 分割線で切った残りの画像
+        #  // bunkatsu-sen de kitta nokori no gazō
+        #  // The remaining image cut with parting line
+        self.remained_src: IplImage = IplImage()
+        #  // 作業用画像
+        #  // sagyō-yō gazō
+        #  // Work image
+        self.proc_img: IplImage = IplImage()
+        #  // 二値化画像
+        #  // binary image
+        self.bin_img: IplImage = IplImage()
+        #  // detect_pixels用
+        #  dp_img = None
+
+        self.fs1_recursive = None
+        self.fs2_recursive = None
+
         self.src = cvCloneImage(src)
         #  self.remained_src = cvCloneImage(remained_src)
         self.proc_img = cvCloneImage(src)
