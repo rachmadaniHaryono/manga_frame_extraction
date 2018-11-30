@@ -314,3 +314,63 @@ class FrameSeparation:
         # // Scan on x axis
         self.calculate_oblique_slc(False)
         # self.calculate_oblique_wpr(False)
+
+    def invasion_test(self, is_horizontal: bool, position: int, length: int, theta: int)-> Response:
+        """Judge inside / outside frame."""
+        # // inside / outside frame judgment
+        # // コマ内外判定
+        # // Koma naigai hantei
+        """Original kwargs:
+            bool is_horizontal, int position, int length, int theta
+        """
+        pixels: List[PixPoint] = []
+        try:
+            pixels = self.detect_pixels(is_horizontal, position, length, theta, pixels)
+        except Exception as err:
+            if err == Response.INVALID_DIGREES:
+                logging.debug("invalid digree")
+
+        is_left_black = False
+        is_right_black = False
+        width = 2 if theta == 90 else 3
+        count = 0
+        count_l = 0
+        count_r = 0
+        src = self.src
+        #  pixels_size = pixels.size()
+        pixels_size = len(pixels)
+        for d in range(pixels_size):
+            if ((pixels[d].x + width >= src.width) or (pixels[d].x - width <= 0) or (pixels[d].y + width >= src.height) or (pixels[d].y - width <= 0)):
+                continue
+            is_left_black = False
+            is_right_black = False
+            if is_horizontal:
+                for i in range(width):
+                    is_left_black = True if self.bin_img.imageData[(pixels[d].y + i) * self.bin_img.widthStep + pixels[d].x * self.bin_img.nChannels] < 127 else is_left_black
+                    is_right_black = True if self.bin_img.imageData[(pixels[d].y - i) * self.bin_img.widthStep + pixels[d].x * self.bin_img.nChannels] < 127 else is_right_black
+            else:
+                for i in range(width):
+                    is_left_black = True if self.bin_img.imageData[pixels[d].y * self.bin_img.widthStep + (pixels[d].x - i) * self.bin_img.nChannels] < 127 else is_left_black
+                    is_right_black = True if self.bin_img.imageData[pixels[d].y * self.bin_img.widthStep + (pixels[d].x + i) * self.bin_img.nChannels] < 127 else is_right_black
+            if is_left_black and not is_right_black:
+                count_l += 1
+            if not is_left_black and is_right_black:
+                count_r += 1
+        count = max(count_l, count_r)
+        logging.debug("is_horizontal:{}, position:{}, theta:{}, invasion_test:{}".format(
+            is_horizontal, position, theta, count/length
+        ))
+        return Response.OK if count / length > (0.55 if theta == 90 else 0.4) else Response.INVASION_FRAMES
+
+    def slat(self):
+        raise NotImplementedError
+
+    def sl_exists(self):
+        raise NotImplementedError
+
+    def separation(self):
+        raise NotImplementedError
+
+    def detect_pixels(self, is_horizontal: bool, position: int, length: int, theta: int, pixels: List[PixPoint])-> List[PixPoint]:
+        #  // 傾きのある直線上の画素を走査
+        raise NotImplementedError
