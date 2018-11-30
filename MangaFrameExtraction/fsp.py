@@ -106,3 +106,27 @@ class FrameSeparation:
             cvShowImage("[ cwgv ] bin_img", self.bin_img)
             cv.waitKey(0)
         cvReleaseImage(binary)
+
+    def dslc_hv(self):
+        # // y軸の走査
+        # // Y-jiku no sōsa
+        # // Scan on y axis
+        self.calculate_slc(True)
+        self.calculate_wpr(True)
+        # // x軸の走査
+        # // x-jiku no sōsa
+        # // Scan on x axis
+        self.calculate_slc(False)
+        self.calculate_wpr(False)
+
+    def dslc_o(self):
+        # // y軸の走査
+        # // Y-jiku no sōsa
+        # // Scan on y axis
+        self.calculate_oblique_slc(True)
+        #  self.calculate_oblique_wpr(True)
+        # // x軸の走査
+        # // x-jiku no sōsa
+        # // Scan on x axis
+        self.calculate_oblique_slc(False)
+        # self.calculate_oblique_wpr(False)
