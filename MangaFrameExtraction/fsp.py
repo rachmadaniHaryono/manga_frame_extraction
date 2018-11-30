@@ -193,62 +193,68 @@ class FrameSeparation:
 
         if not is_blank(self.src):
             calculate_ig()
-        #     #  // 最大長の2%分を走査から外す
-        #     #  // Saidai-chō no 2-pāsento-bun o sōsa kara hazusu
-        #     #  // Remove 2% of the maximum length from scanning
-            xi = MIN(src.width, src.height) * 0.02
+            #  // 最大長の2%分を走査から外す
+            #  // Saidai-chō no 2-pāsento-bun o sōsa kara hazusu
+            #  // Remove 2% of the maximum length from scanning
+            #  // for cwgv
+            self.xi = min(src.width, src.height) * 0.02
+            logging.debug('xi: {}'.format(self.xi))
 
         # NOTE:
         logging.debug('==={}==='.format(separate_count))
 
-        cwgv()
-        dslc_hv()
+        self.cwgv()
+        self.dslc_hv()
 
-        slat()
+        self.slat()
 
-        if not sl_exists():
+        if not self.sl_exists():
             #  // 斜めのコマを考慮する
             #  // Naname no koma o kōryo suru
             #  // Consider diagonal frames
-            dslc_o()
-            slat()
-            if not sl_exists():
+            self.dslc_o()
+            self.slat()
+            if not self.sl_exists():
                 if not is_blank(src):
                     self.save_image(src)
             else:
-                separation_res = separation()
-                if separation_res == DROP_SLICE_SRC:
+                separation_res = self.separation()
+                if separation_res == Response.DROP_SLICE_SRC:
                     if (self.remained_src.width * self.remained_src.height >= self.src.width * self.src.height * 0.95):
                         self.save_image(self.src)
-                    fs1_recursive = FrameSeparation(self.remained_src, filename, output_dir, original_size, rel_remained_point)
-                    del fs1_recursive
+                    self.fs1_recursive = FrameSeparation(self.remained_src, filename, output_dir, original_size, self.rel_remained_point)
+                    del self.fs1_recursive
 
-                elif separation_res == DROP_REMAINED_SRC:
+                elif separation_res == Response.DROP_REMAINED_SRC:
                     if (self.slice_src.width * self.slice_src.height >= self.src.width * self.src.height * 0.95):
                         self.save_image(self.src)
-                    fs1_recursive = FrameSeparation(self.slice_src, filename, output_dir, original_size, rel_slice_point)
-                    del fs1_recursive
-                elif separation_res == OK:
-                    fs1_recursive = FrameSeparation(self.slice_src, filename, output_dir, original_size, rel_slice_point)
-                    fs2_recursive = FrameSeparation(self.remained_src, filename, output_dir, original_size, rel_remained_point)
-                    del fs1_recursive
-                    del fs2_recursive
+                    self.fs1_recursive = FrameSeparation(self.slice_src, filename, output_dir, original_size, self.rel_slice_point)
+                    del self.fs1_recursive
+                elif separation_res == Response.OK:
+                    self.fs1_recursive = FrameSeparation(self.slice_src, filename, output_dir, original_size, self.rel_slice_point)
+                    self.fs2_recursive = FrameSeparation(self.remained_src, filename, output_dir, original_size, self.rel_remained_point)
+                    del self.fs1_recursive
+                    del self.fs2_recursive
         else:
-            separation_res = separation()
-            if separation_res == DROP_SLICE_SRC:
-                fs1_recursive = FrameSeparation(this.remained_src, filename, output_dir, original_size, rel_remained_point)
-                del fs1_recursive
-            elif separation_res == DROP_SLICE_SRC:
-                fs1_recursive = FrameSeparation(self.slice_src, filename, output_dir, original_size, rel_slice_point)
-                del fs1_recursive
+            separation_res = self.separation()
+            if separation_res == Response.DROP_SLICE_SRC:
+                self.fs1_recursive = FrameSeparation(self.remained_src, filename, output_dir, original_size, self.rel_remained_point)
+                del self.fs1_recursive
+            elif separation_res == Response.DROP_SLICE_SRC:
+                self.fs1_recursive = FrameSeparation(self.slice_src, filename, output_dir, original_size, self.rel_slice_point)
+                del self.fs1_recursive
 
-            elif separation_res == OK:
-                fs1_recursive = FrameSeparation(self.slice_src, filename, output_dir, original_size, rel_slice_point)
-                fs2_recursive = FrameSeparation(self.remained_src, filename, output_dir, original_size, rel_remained_point)
-                del fs1_recursive
-                del fs2_recursive
+            elif separation_res == Response.OK:
+                self.fs1_recursive = FrameSeparation(self.slice_src, filename, output_dir, original_size, self.rel_slice_point)
+                self.fs2_recursive = FrameSeparation(self.remained_src, filename, output_dir, original_size, self.rel_remained_point)
+                del self.fs1_recursive
+                del self.fs2_recursive
 
     def save_image(self, img):
+        """save image.
+        Args:
+            img: image
+        """
         """Original kwargs:
             IplImage* img
         """
