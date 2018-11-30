@@ -3,6 +3,7 @@
 
 Based on code created by 山田　祐雅
 """
+import os
 
 
 class FrameSeparation:
@@ -15,7 +16,7 @@ class FrameSeparation:
         #  self.remained_src = cvCloneImage(remained_src)
         self.proc_img = cvCloneImage(src)
         self.bin_img = cvCloneImage(src)
-        #  self.separate_count = separate_count;
+        #  self.separate_count = separate_count
         self.original_size = original_size
         self.rel_original_point = rel_original_point
         self.filename = filename
@@ -45,18 +46,18 @@ class FrameSeparation:
             slat()
             if not sl_exists():
                 if not is_blank(src):
-                    save_image(src)
+                    self.save_image(src)
             else:
                 separation_res = separation()
                 if separation_res == DROP_SLICE_SRC:
                     if (self.remained_src.width * self.remained_src.height >= self.src.width * self.src.height * 0.95):
-                        save_image(self.src)
+                        self.save_image(self.src)
                     fs1_recursive = FrameSeparation(self.remained_src, filename, output_dir, original_size, rel_remained_point)
                     del fs1_recursive
 
                 elif separation_res == DROP_REMAINED_SRC:
                     if (self.slice_src.width * self.slice_src.height >= self.src.width * self.src.height * 0.95):
-                        save_image(self.src)
+                        self.save_image(self.src)
                     fs1_recursive = FrameSeparation(self.slice_src, filename, output_dir, original_size, rel_slice_point)
                     del fs1_recursive
                 elif separation_res == OK:
@@ -78,3 +79,17 @@ class FrameSeparation:
                 fs2_recursive = FrameSeparation(self.remained_src, filename, output_dir, original_size, rel_remained_point)
                 del fs1_recursive
                 del fs2_recursive
+
+    def save_image(self, img):
+        """Original kwargs:
+            IplImage* img
+        """
+        print("panel-region\nseparate count:{}\nrel original point(x, y):{},{}\nimg (width, height):{}, {}".format(
+            self.separate_count,
+            self.rel_original_point.x, self.rel_original_point.y,
+            img.width, img.height,
+        ))
+
+        dst_path = os.path.join(self.output_dir, '{}_{}.jpg'.format(self.filename, self.separate_count))
+        cvSaveImage(dst_path, img)
+        self.separate_count += 1
