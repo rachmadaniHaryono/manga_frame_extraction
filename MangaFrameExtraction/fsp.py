@@ -4,7 +4,7 @@
 Based on code created by 山田　祐雅
 """
 from enum import Enum
-from math import sqrt, atan
+from math import sqrt, atan, cos
 import collections
 import logging
 import os
@@ -47,13 +47,28 @@ class cvPoint:
 
 
 class Mat:
-    pass
+
+    def zeros(self, *args):
+        raise NotImplementedError
 
 
 @attr.s
 class CvSize:
     width = attr.ib(default=0)
     height = attr.ib(default=0)
+
+
+class LineIterator:
+
+    def __init__(self, *args):
+        raise NotImplementedError
+
+    @property
+    def count(self):
+        raise NotImplementedError
+
+    def pos(self, *args):
+        raise NotImplementedError
 
 
 COLOR_BLACK = CV_RGB(0, 0, 0)
@@ -142,6 +157,14 @@ def cvReleaseImage(*args):
 
 
 def cvScalarAll(*args):
+    raise NotImplementedError
+
+
+def to_rad(*args):
+    raise NotImplementedError
+
+
+def resize_pixels(*args):
     raise NotImplementedError
 
 
