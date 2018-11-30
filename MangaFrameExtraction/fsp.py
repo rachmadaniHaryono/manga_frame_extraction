@@ -93,3 +93,16 @@ class FrameSeparation:
         dst_path = os.path.join(self.output_dir, '{}_{}.jpg'.format(self.filename, self.separate_count))
         cvSaveImage(dst_path, img)
         self.separate_count += 1
+
+    def cwgv(self, show_image=False):
+        #  // 2値化
+        #  // 2 Atai-ka
+        #  // Binarization
+        binary = cvCloneImage(src)
+        cvThreshold(binary, binary, 120, 255, CV_THRESH_BINARY)
+        self.bin_img = cvCloneImage(binary)
+        self.proc_img = cvCloneImage(binary)
+        if show_image:
+            cvShowImage("[ cwgv ] bin_img", self.bin_img)
+            cv.waitKey(0)
+        cvReleaseImage(binary)
