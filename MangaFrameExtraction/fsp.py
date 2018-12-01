@@ -12,11 +12,10 @@ import os
 import attr
 import cv2 as cv
 from numpy import pi as CV_PI
-from typing import List
+from typing import List, Union, Optional
 from cv import (
     addWeighted as cvAddWeighted,
     convertScaleAbs as cvConvertScaleAbs,
-    CloneImage as cvCloneImage,
     CreateImage as cvCreateImage,
     CV_8U,
     CV_GAUSSIAN,
@@ -152,8 +151,13 @@ def cvarrToMat(src):
     raise NotImplementedError
 
 
+def cvCloneImage(arg):
+    return arg.copy()
+
+
 def cvReleaseImage(*args):
-    raise NotImplementedError
+    # compatibility for similarity to cpp code
+    pass
 
 
 def cvScalarAll(*args):
@@ -170,7 +174,7 @@ def resize_pixels(*args):
 
 class FrameSeparation:
 
-    def __init__(self, src, filename: str, output_dir: str, original_size: int, rel_original_point):
+    def __init__(self, src, filename: Union[str, os.PathLike[str]], output_dir: Optional[str], original_size: int, rel_original_point):
         """init func.
         Args:
             src: source
